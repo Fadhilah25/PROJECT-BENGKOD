@@ -935,7 +935,7 @@ def main():
         <hr style="margin: 1rem 0;">
         <small>
             <strong>Technology Stack:</strong> Python • Scikit-learn • Streamlit • Plotly<br>
-            <strong>Data Source:</strong> Obesity Dataset (Mexico, Peru, Colombia)<br>
+            <strong>Data Source:</strong> Obesity Dataset <br>
             <strong>Last Updated:</strong> June 2025
         </small>
     </div>
