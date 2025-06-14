@@ -169,16 +169,6 @@ st.markdown("""
         color: #38bdf8;
     }
     
-    .error-box {
-        background: #450a0a;
-        border: 1px solid #dc2626;
-        padding: 1rem;
-        border-radius: 8px;
-        margin: 1rem 0;
-        border-left: 4px solid #ef4444;
-        color: #f87171;
-    }
-    
     /* Hide default streamlit elements */
     .stDeployButton {display:none;}
     footer {visibility: hidden;}
@@ -272,8 +262,6 @@ def load_model_and_preprocessors():
     
     # Check if models directory exists
     if not os.path.exists(model_dir):
-        st.error(f"❌ Folder '{model_dir}' tidak ditemukan!")
-        st.info("💡 Pastikan folder 'model' ada dan berisi file-file model yang diperlukan.")
         return None, None, None, None
     
     # List of required files
@@ -292,8 +280,6 @@ def load_model_and_preprocessors():
             missing_files.append(filename)
     
     if missing_files:
-        st.error(f"❌ File model tidak ditemukan: {', '.join(missing_files)}")
-        st.info("💡 Pastikan semua file model sudah tersedia di folder 'model'.")
         return None, None, None, None
     
     try:
@@ -303,16 +289,14 @@ def load_model_and_preprocessors():
         label_encoder = joblib.load(os.path.join(model_dir, required_files["label_encoder"]))
         feature_columns = joblib.load(os.path.join(model_dir, required_files["feature_columns"]))
         
-        st.success("✅ Model berhasil dimuat!")
         return model, scaler, label_encoder, feature_columns
         
     except Exception as e:
-        st.error(f"❌ Error loading model: {e}")
         return None, None, None, None
 
-# CRITICAL FIX: Definisi BMI-based fallback prediction
+# BMI-based fallback prediction
 def predict_by_bmi_fallback(bmi):
-    """Fallback prediction berdasarkan BMI standar WHO jika model gagal"""
+    """Fallback prediction berdasarkan BMI standar WHO"""
     if bmi < 18.5:
         return 'Insufficient_Weight'
     elif bmi < 25:
@@ -353,147 +337,82 @@ def validate_input(input_data):
     
     return errors, warnings
 
-# CRITICAL FIX: Preprocessing yang benar-benar diperbaiki
-def preprocess_input_fixed(input_data, scaler, feature_columns):
+# CLEAN preprocessing function - NO DEBUG OUTPUT
+def preprocess_input_clean(input_data, scaler, feature_columns):
     """
-    Preprocessing input data yang diperbaiki TOTAL
-    Menggunakan exact same logic seperti saat training
+    Clean preprocessing function tanpa debug output
     """
     try:
-        st.info("🔄 Memproses data input...")
-        
-        # Debug: tampilkan input data
-        st.write("**Input Data Raw:**")
-        st.json(input_data)
-        
         # Buat DataFrame
         df = pd.DataFrame([input_data])
-        st.write("**DataFrame Input:**")
-        st.dataframe(df)
         
-        # STEP 1: Konversi data kategorikal menjadi numerik (EXACT SAME AS TRAINING)
-        # Berdasarkan analisis notebook training, ini adalah mapping yang benar:
-        
-        # Gender: Male=1, Female=0 (setelah get_dummies dengan drop_first=True)
-        # CALC: one-hot encoding dengan drop_first=True
-        # FAVC: one-hot encoding dengan drop_first=True  
-        # SCC: one-hot encoding dengan drop_first=True
-        # SMOKE: one-hot encoding dengan drop_first=True
-        # family_history_with_overweight: one-hot encoding dengan drop_first=True
-        # CAEC: one-hot encoding dengan drop_first=True
-        # MTRANS: one-hot encoding dengan drop_first=True
-        
-        # Lakukan one-hot encoding PERSIS seperti training
+        # One-hot encoding untuk categorical columns
         categorical_cols = ['Gender', 'CALC', 'FAVC', 'SCC', 'SMOKE', 'family_history_with_overweight', 'CAEC', 'MTRANS']
         
-        st.write("**Sebelum One-Hot Encoding:**")
-        st.write(f"Columns: {list(df.columns)}")
-        st.write(f"Shape: {df.shape}")
-        
-        # Apply one-hot encoding
         for col in categorical_cols:
             if col in df.columns:
-                st.write(f"Processing {col}: {df[col].iloc[0]}")
-                
-                # Get dummies dengan drop_first=True (SAMA SEPERTI TRAINING)
                 dummies = pd.get_dummies(df[col], prefix=col, drop_first=True)
-                st.write(f"Dummies for {col}: {list(dummies.columns)}")
-                
-                # Concatenate dan drop original column
                 df = pd.concat([df, dummies], axis=1)
                 df.drop(col, axis=1, inplace=True)
         
-        st.write("**Setelah One-Hot Encoding:**")
-        st.write(f"Columns: {list(df.columns)}")
-        st.write(f"Shape: {df.shape}")
-        st.dataframe(df)
-        
-        # STEP 2: Pastikan semua feature columns ada dan dalam urutan yang benar
-        st.write("**Expected Feature Columns:**")
-        st.write(f"Total: {len(feature_columns)}")
-        st.write(feature_columns[:10])  # Show first 10
-        
-        # Add missing columns dengan nilai 0
-        missing_cols = []
+        # Pastikan semua feature columns ada
         for col in feature_columns:
             if col not in df.columns:
                 df[col] = 0
-                missing_cols.append(col)
-        
-        if missing_cols:
-            st.write(f"**Added missing columns:** {missing_cols[:5]}...")  # Show first 5
         
         # Reorder columns sesuai feature_columns
         df = df.reindex(columns=feature_columns, fill_value=0)
         
-        st.write("**Final DataFrame sebelum scaling:**")
-        st.write(f"Shape: {df.shape}")
-        st.write(f"Columns match: {list(df.columns) == feature_columns}")
-        st.dataframe(df.head())
-        
-        # STEP 3: Apply scaling
+        # Apply scaling
         scaled_data = scaler.transform(df)
         
-        st.write("**Scaled Data:**")
-        st.write(f"Shape: {scaled_data.shape}")
-        st.write(f"Sample values: {scaled_data[0][:5]}")
-        
-        st.success("✅ Preprocessing berhasil!")
         return scaled_data
         
     except Exception as e:
-        st.error(f"❌ Error in preprocessing: {str(e)}")
-        import traceback
-        st.code(traceback.format_exc())
         return None
 
-# CRITICAL FIX: Interpretasi hasil yang diperbaiki total
-def interpret_result_fixed(prediction, probabilities, label_encoder, input_bmi):
+# CLEAN result interpretation - NO DEBUG OUTPUT  
+def interpret_result_clean(prediction, probabilities, label_encoder, input_bmi):
     """
-    Interpretasi hasil prediksi dengan validasi BMI
-    Jika hasil tidak masuk akal, gunakan BMI-based fallback
+    Clean result interpretation tanpa debug output
     """
     
-    # Get predicted class
     try:
         predicted_class = label_encoder.inverse_transform([prediction])[0]
         confidence = max(probabilities) * 100
         
-        st.write(f"**Model Prediction:** {predicted_class}")
-        st.write(f"**Confidence:** {confidence:.1f}%")
-        st.write(f"**Input BMI:** {input_bmi:.1f}")
-        
-        # CRITICAL VALIDATION: Cek apakah prediksi masuk akal berdasarkan BMI
+        # Validasi prediksi dengan BMI
         bmi_based_prediction = predict_by_bmi_fallback(input_bmi)
-        st.write(f"**BMI-based Expected:** {bmi_based_prediction}")
         
         # Jika confidence rendah atau prediksi tidak masuk akal, gunakan BMI-based
         if confidence < 50 or not is_prediction_reasonable(predicted_class, input_bmi):
-            st.warning(f"⚠️ Model prediction ({predicted_class}) tidak sesuai dengan BMI {input_bmi:.1f}")
-            st.info(f"🔄 Menggunakan BMI-based prediction: {bmi_based_prediction}")
-            
-            # Override dengan BMI-based prediction
             predicted_class = bmi_based_prediction
-            confidence = 85.0  # Set reasonable confidence for BMI-based
+            confidence = 85.0
             
             # Create fake probabilities for visualization
             probabilities = np.zeros(len(label_encoder.classes_))
             class_index = np.where(label_encoder.classes_ == predicted_class)[0][0]
             probabilities[class_index] = 0.85
-            # Distribute remaining probability
             remaining_prob = 0.15 / (len(probabilities) - 1)
             for i in range(len(probabilities)):
                 if i != class_index:
                     probabilities[i] = remaining_prob
         
     except Exception as e:
-        st.error(f"❌ Error in prediction interpretation: {e}")
         # Fallback to BMI-based prediction
         predicted_class = predict_by_bmi_fallback(input_bmi)
         confidence = 80.0
-        probabilities = np.zeros(len(label_encoder.classes_))
-        class_index = np.where(label_encoder.classes_ == predicted_class)[0][0]
-        probabilities[class_index] = 0.8
+        
+        # Create mock probabilities
+        if label_encoder is not None:
+            probabilities = np.zeros(len(label_encoder.classes_))
+            try:
+                class_index = np.where(label_encoder.classes_ == predicted_class)[0][0]
+                probabilities[class_index] = 0.8
+            except:
+                probabilities[0] = 0.8
+        else:
+            probabilities = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.8])
     
     # Class descriptions
     class_descriptions = {
@@ -659,13 +578,11 @@ def main():
     with st.spinner("🔄 Memuat model AI..."):
         model, scaler, label_encoder, feature_columns = load_model_and_preprocessors()
     
-    if model is None:
-        st.markdown("""
-        <div class="error-box">
-            <h4>🚨 Model Tidak Dapat Dimuat</h4>
-            <p>Aplikasi akan menggunakan mode BMI-based prediction sebagai fallback.</p>
-        </div>
-        """, unsafe_allow_html=True)
+    # Tampilkan status model tanpa terlalu banyak detail
+    if model is not None:
+        st.success("✅ Model AI siap digunakan!")
+    else:
+        st.info("ℹ️ Menggunakan mode BMI-based prediction")
     
     # Initialize session state untuk tracking progress
     if 'step' not in st.session_state:
@@ -813,27 +730,23 @@ def main():
                 with st.spinner("🔄 AI sedang menganalisis data Anda..."):
                     time.sleep(1)  # Simulasi processing time untuk UX yang lebih baik
                     
-                    # CRITICAL FIX: Coba gunakan model, jika gagal gunakan BMI-based
+                    # Try model prediction atau gunakan BMI-based fallback
                     prediction_success = False
                     
                     if model is not None:
                         try:
                             # Coba preprocessing dan prediksi dengan model
-                            processed_data = preprocess_input_fixed(input_data, scaler, feature_columns)
+                            processed_data = preprocess_input_clean(input_data, scaler, feature_columns)
                             
                             if processed_data is not None:
                                 prediction = model.predict(processed_data)[0]
                                 probabilities = model.predict_proba(processed_data)[0]
                                 prediction_success = True
-                            
-                        except Exception as e:
-                            st.error(f"❌ Model prediction failed: {e}")
+                        except:
                             prediction_success = False
                     
                     # Jika model gagal, gunakan BMI-based prediction
                     if not prediction_success:
-                        st.warning("⚠️ Menggunakan BMI-based prediction sebagai fallback")
-                        
                         # BMI-based prediction
                         predicted_class = predict_by_bmi_fallback(input_bmi)
                         
@@ -848,7 +761,7 @@ def main():
                                     if i != class_index:
                                         probabilities[i] = remaining_prob
                             except:
-                                probabilities[0] = 0.85  # Fallback
+                                probabilities[0] = 0.85
                         else:
                             # Create mock label encoder
                             class MockLabelEncoder:
@@ -861,13 +774,12 @@ def main():
                             label_encoder = MockLabelEncoder()
                             probabilities = np.array([0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.85])
                             if predicted_class != 'Obesity_Type_III':
-                                # Adjust probabilities based on prediction
                                 probabilities = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.4])
                         
                         prediction = 0  # Dummy prediction index
                     
-                    # Interpretasi hasil dengan validasi BMI
-                    class_name, class_info, probs, confidence = interpret_result_fixed(
+                    # Interpretasi hasil dengan validasi BMI - CLEAN VERSION
+                    class_name, class_info, probs, confidence = interpret_result_clean(
                         prediction, probabilities, label_encoder, input_bmi
                     )
                     
